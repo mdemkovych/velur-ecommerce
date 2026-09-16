@@ -17,7 +17,7 @@ A production online shop for a cosmetics brand: storefront, basket, checkout
 paid through Monobank, delivery to a Nova Poshta branch, and an admin panel for
 products, orders, banners and a staff journal.
 
-**11 tables · 21 migrations · 34 API routes · 24 pages · 140 unit tests, 15 more against a real database**
+**[▶ Live demo](https://velur-ecommerce.vercel.app)**  ·  11 tables · 21 migrations · 34 API routes · 24 pages · 140 unit tests, 15 more against a real database
 
 > **About this repository.** This is a production e-commerce shop built for a Ukrainian
 > cosmetics brand, published here as a portfolio copy. The brand's name, logo and
@@ -25,6 +25,36 @@ products, orders, banners and a staff journal.
 > registration details are placeholders. The architecture, the code and the decisions
 > are the ones that run. The interface is translated into English; the live shop serves
 > Ukrainian customers in Ukrainian.
+
+---
+
+## Demo access
+
+The storefront is open. The admin panel needs an account, and one is published
+here on purpose:
+
+| | |
+|---|---|
+| **Sign in** | [velur-ecommerce.vercel.app/auth/login](https://velur-ecommerce.vercel.app/auth/login) |
+| **Email** | `reviewer@example.com` |
+| **Password** | `kaVgeg-qibdum-vetry3` |
+| **2FA secret** | `PV2LUEQ5LCEKQR3RTBB5FMSMZTWDZ3UP` |
+
+Add that secret to any authenticator app and it will produce the six-digit code
+the sign-in asks for.
+
+**The second factor is published deliberately, and that is the point.** A
+password is not a session here: `getSessionUser()` returns `null` for a
+password-only session on an account that has a verified factor, so every guard
+refuses it. Handing out the password alone would open nothing.
+
+This account is a **manager**, not the owner. It can work orders, edit the
+catalogue and read the journal; it cannot add or deactivate anyone, reset
+another factor, or delete a journal entry — those belong to the owner, and the
+journal records what managers did.
+
+Orders are real: placing one reserves stock, and the checkout takes a card
+through Monobank's test environment. Nothing is charged.
 
 ---
 
@@ -81,6 +111,7 @@ also provides Auth and the bucket the product media lives in.
 ```bash
 npm install
 cp .env.example .env.local        # fill in the database and Supabase keys
+npx prisma generate               # nothing generates the client on install
 npx prisma migrate deploy         # create the tables
 npm run create-owner -- you@example.com "Name"
 npm run dev                       # http://localhost:3000
