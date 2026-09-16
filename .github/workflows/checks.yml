@@ -1,0 +1,53 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    env:
+      # `prisma generate` resolves this through `prisma.config.ts` and refuses to
+      # start without it, but it never opens a connection: it reads the schema
+      # and writes the client. A fake value is therefore enough.
+      #
+      # MUST NOT: replace this with the real DATABASE_URL or DIRECT_URL, here or
+      # in the repository's secrets. The deployment's build command begins with
+      # `prisma migrate deploy`, so a real connection string reachable from a
+      # workflow is all that stands between one copied line and migrations
+      # running against the live shop on every pull request.
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Nothing generates the client on install, and both the type-aware lint
+      # and `tsc` need its types.
+      - run: npx prisma generate
+
+      # `next-env.d.ts` is generated, and therefore git-ignored: a fresh checkout
+      # has neither it nor the route types it points at, and `tsc` then cannot
+      # resolve an imported `.jpg`. `typegen` writes both without a build, and
+      # so without a database.
+      - run: npx next typegen
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      # The one check nothing else performs: the deployment runs `next build`,
+      # which never runs a test. A broken test otherwise ships green.
+      #
+      # MUST NOT: add `npm run test:db` beside this. It writes to the shop's own
+      # database, which is what `ALLOW_DB_TESTS=1` exists to make deliberate.
+      - run: npm run test

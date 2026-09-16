@@ -1,0 +1,13 @@
+-- Marks an order whose personal data has been erased.
+--
+-- The privacy policy has always promised that order data does not outlive its
+-- retention period; nothing in the codebase deleted anything, so the promise
+-- was not kept. The sweep that keeps it erases rather than deletes — name,
+-- telephone, email, street address and comment go; the sum, the lines and the
+-- dates stay — because tax law wants the transaction and data protection law
+-- wants the person gone, and erasing the person satisfies both.
+--
+-- Nullable and unindexed on purpose: the table is small, the sweep runs nightly
+-- against a condition that matches nothing for the first three years, and an
+-- index whose column is null on virtually every row would not be used anyway.
+ALTER TABLE "public"."orders" ADD COLUMN "anonymizedAt" TIMESTAMP(3);

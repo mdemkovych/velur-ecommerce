@@ -1,0 +1,327 @@
+@import "tailwindcss";
+
+/*
+ * VELUR Design System — Editorial Monochrome Design Tokens & Typographic Scale
+ */
+
+@custom-variant can-hover (@media (hover: hover) and (pointer: fine));
+
+@theme {
+  --breakpoint-tablet: 43.75rem; /* 700px */
+  --breakpoint-wide: 71.875rem;  /* 1150px */
+
+  --color-ink: #000000;          /* primary text, borders */
+  --color-ink-2: #525252;        /* secondary text */
+  --color-ink-3: #737373;        /* tertiary text */
+  --color-line: #E5E5E5;         /* default hairline border */
+  --color-line-2: #D4D4D4;       /* secondary border */
+  --color-surface: #FFFFFF;
+  --color-surface-2: #FAFAFA;    /* panel fill */
+  --color-surface-3: #F5F5F5;    /* admin page ground */
+  --color-photo-bg: #F5F5F5;     /* media loading placeholder ground */
+
+  --color-sale: #D62B20;         /* sale price emphasis */
+  --color-brand-dark: #1A1A1A;   /* dark interactive elements */
+}
+
+/* Storefront sticky header height offset token */
+:root {
+  --header-h: 65px;
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --header-h: 97px;
+  }
+}
+
+/* Admin panel header height offset token */
+:root {
+  --admin-header-h: 65px;
+}
+
+/* Hero peek offset token for below-fold hint */
+:root {
+  --hero-peek: 98px;
+}
+
+@media (min-width: 40rem) {
+  :root {
+    --hero-peek: 118px;
+  }
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --hero-peek: 0px;
+  }
+}
+
+/* Typography Utility Classes */
+.font-cormorant {
+  font-family: var(--font-cormorant), "Georgia", serif;
+}
+.font-tenor {
+  font-family: var(--font-tenor-sans), sans-serif;
+}
+.font-montserrat {
+  font-family: var(--font-montserrat), system-ui, -apple-system, sans-serif;
+}
+
+/* Heading & Eyebrow Typographic Scale */
+.type-display {
+  font-family: var(--font-cormorant), "Georgia", serif;
+  font-size: clamp(2.25rem, 1.5rem + 3vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: 0.01em;
+}
+.type-h1 {
+  font-family: var(--font-cormorant), "Georgia", serif;
+  font-size: clamp(1.75rem, 1.3rem + 2vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+}
+.type-h2 {
+  font-family: var(--font-cormorant), "Georgia", serif;
+  font-size: clamp(1.375rem, 1.15rem + 1vw, 1.875rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+.type-h3 {
+  font-family: var(--font-montserrat), system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.type-eyebrow {
+  font-family: var(--font-montserrat), system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 60s linear infinite;
+}
+
+/* Sharp-cornered design token baseline reset */
+* {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Swatch circular radius exception */
+.swatch-dot {
+  border-radius: 9999px !important;
+}
+
+/* Product card subtle corner radius */
+.radius-card {
+  border-radius: 2px !important;
+}
+
+/* Floating contact button: round, because square it reads as a panel torn off the
+   page rather than as a control floating over it. Scoped to the one element for
+   the same reason as the two above — the reset stays the rule. */
+.contact-fab {
+  border-radius: 9999px !important;
+}
+
+/* Product gallery video scrubber control styling */
+.video-scrub {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.video-scrub::-webkit-slider-runnable-track {
+  height: 3px;
+  background: linear-gradient(
+    to right,
+    #ffffff var(--played, 0%),
+    rgb(255 255 255 / 0.35) var(--played, 0%)
+  );
+}
+.video-scrub::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 3px;
+  height: 11px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+}
+.video-scrub::-moz-range-track {
+  height: 3px;
+  background: rgb(255 255 255 / 0.35);
+}
+.video-scrub::-moz-range-progress {
+  height: 3px;
+  background: #ffffff;
+}
+.video-scrub::-moz-range-thumb {
+  width: 3px;
+  height: 11px;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+}
+
+/* Accessible focus-visible indicators */
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+.on-dark :focus-visible,
+:focus-visible.on-dark {
+  outline-color: var(--color-surface);
+}
+
+/* Native input outline suppression in favor of border highlight */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+::selection {
+  background-color: #000000;
+  color: #FFFFFF;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  font-family: var(--font-montserrat), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #FFFFFF;
+  color: #000000;
+}
+
+.font-heading {
+  font-family: var(--font-cormorant), "Georgia", serif;
+}
+
+.product-image-hover {
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.product-image-hover:hover {
+  transform: scale(1.04);
+}
+
+.link-underline {
+  position: relative;
+}
+
+.link-underline::after {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background-color: #000000;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.link-underline:hover::after {
+  width: 100%;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Shake animation for progressive form feedback */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-visible-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-visible-scrollbar::-webkit-scrollbar-track {
+  background: #E5E5E5;
+  border-radius: 2px;
+}
+.custom-visible-scrollbar::-webkit-scrollbar-thumb {
+  background: #000000;
+  border-radius: 2px;
+}
+.custom-visible-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #333333;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -0.5rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+.animate-toast-in {
+  animation: toast-in 0.18s ease-out both;
+}
+
+@keyframes toast-countdown {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+.animate-toast-countdown {
+  transform-origin: left;
+  animation: toast-countdown linear forwards;
+}
+

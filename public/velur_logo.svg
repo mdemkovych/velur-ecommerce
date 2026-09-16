@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1148" height="276" viewBox="0 0 1148 276" role="img" aria-label="VELUR">
+  <g fill="none" stroke="#000000" stroke-width="16" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M 64 58 L 124 218 L 184 58" />
+    <path d="M 403 58 L 307 58 L 307 218 L 403 218" />
+    <path d="M 307 138 L 379 138" />
+    <path d="M 526 58 L 526 218 L 618 218" />
+    <path d="M 741 58 L 741 158 C 741 218 857 218 857 158 L 857 58" />
+    <path d="M 980 218 L 980 58 L 1040 58 C 1084 58 1084 140 1040 140 L 980 140" />
+    <path d="M 1030 140 L 1084 218" />
+  </g>
+</svg>

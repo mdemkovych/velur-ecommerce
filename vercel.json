@@ -1,0 +1,20 @@
+{
+  "buildCommand": "prisma migrate deploy && prisma generate && next build",
+  "regions": [
+    "dub1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/expire-orders",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/scrub-personal-data",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/sync-novaposhta",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}

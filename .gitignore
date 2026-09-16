@@ -1,0 +1,38 @@
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+tsconfig.tsbuildinfo
+.DS_Store
+
+# Secrets. The glob is deliberately broad: an editor backup or a hand-made
+# copy like `.env.local.bak` is just as sensitive as the original, and the
+# narrower `.env*.local` pattern does not match it.
+.env
+.env*
+# …except the documented template, which carries no values.
+!.env.example
+
+# Anything else holding real credentials. `.env*` does not cover a file named
+# like `.admin-credentials.local`, and a secret that git can see is a secret
+# one commit away from being published.
+*credentials*
+*.secret
+
+# Local backups (`npm run backup`). They hold customer names, phones and
+# addresses out of `orders`, plus every product photograph — the one thing in
+# this shop with no second copy. Never in git; keep the folder somewhere that
+# outlives this disk.
+/backup/
+
+# Admin uploads — runtime data, not source. New media goes to Supabase Storage;
+# this covers the files uploaded before that move, which the database still
+# points at. (`/data/` is gone: it was the file-backed store that preceded
+# PostgreSQL, and it held real test orders — names, phones, emails.)
+/public/uploads/
+
+# IDE / local tooling
+.idea/
+.vscode/
+.vercel

@@ -1,0 +1,46 @@
+# Vercel CLI reads this file *instead of* .gitignore when it exists, and that
+# inversion is why every secret is named here explicitly: Next loads
+# `.env.local` at build time and it would quietly override the environment set
+# in the Vercel project — starting with APP_URL, which is still localhost there.
+#
+# `/public/uploads/` used to be force-shipped from here: it is git-ignored, and
+# the catalogue still pointed at files uploaded before media moved to Supabase
+# Storage, so a deployment without them was a shop of grey rectangles. Those
+# files were deleted on 2026-08-19 and the references cleared with them — every
+# photograph now lives in the bucket, and nothing needs carrying along.
+
+node_modules
+.next
+.git
+
+.env
+.env.*
+!.env.example
+*credentials*
+.admin-credentials.local
+*.secret
+
+# Tests never run on the deployment.
+*.test.ts
+
+# Legacy file-backed store, superseded by Postgres.
+data
+
+# Local backups (`npm run backup`). In `.gitignore` too, which is not enough:
+# this file *replaces* that one rather than adding to it, so anything listed
+# only there still ships. `backup/` is 48 MB of product photographs and a dump
+# of `orders` — customer names, telephones and addresses — and none of it has
+# any business in a deployment.
+backup
+
+.idea
+.vscode
+.DS_Store
+tsconfig.tsbuildinfo
+.vercel
+
+# Build output of other tools. None of these exists today; they are named
+# because the cost of listing a directory that never appears is nothing, and
+# the cost of shipping one is another upload like `backup/` was.
+out
+build

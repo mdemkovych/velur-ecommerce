@@ -1,0 +1,48 @@
+{
+  "name": "velur-ecommerce",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --conditions=react-server --test \"src/**/*.test.ts\"",
+    "create-owner": "tsx --env-file-if-exists=.env.local scripts/create-owner.ts",
+    "sync-novaposhta": "tsx --env-file-if-exists=.env.local scripts/sync-novaposhta.ts",
+    "update-account": "tsx --env-file-if-exists=.env.local scripts/update-account.ts",
+    "test:db": "tsx --conditions=react-server --env-file-if-exists=.env.local --test \"tests/db/**/*.test.ts\"",
+    "backup": "tsx --env-file-if-exists=.env.local scripts/backup.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "@reduxjs/toolkit": "^2.12.0",
+    "@sentry/node": "^10.70.0",
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3",
+    "@vercel/analytics": "^2.0.1",
+    "clsx": "^2.1.1",
+    "next": "^16.3.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-redux": "^9.3.0",
+    "server-only": "^0.0.1",
+    "sharp": "0.35.3",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "^16.3.1",
+    "prisma": "^7.9.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  }
+}

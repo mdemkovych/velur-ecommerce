@@ -1,0 +1,581 @@
+// VELUR — data model (§2).
+//
+// Designed against the real catalogue rather than against a fixture: the copy
+// is rigidly structured into the four blocks the product page renders
+// (description, specifications, usage, packaging). Notes below record why a
+// field looks the way it does, so the next person does not "simplify" a
+// constraint that exists for a reason.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7 moved connection strings out of the schema — see `prisma.config.ts`.
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Accounts ─────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  OWNER
+  MANAGER
+  CUSTOMER
+}
+
+/// Profile mirror of `auth.users`. Supabase Auth owns credentials and MFA; this
+/// table owns authorisation. Role and `isActive` are read from here on every
+/// request rather than from the JWT, so revoking access takes effect at once
+/// instead of when the token expires (§3.4).
+model AppUser {
+  /// Same uuid as `auth.users.id`.
+  id        String   @id @db.Uuid
+  email     String   @unique
+  name      String
+  role      UserRole @default(MANAGER)
+  /// Soft revoke — audit entries must keep resolving to a real account (§8).
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditEntries AuditLog[]
+
+  @@map("app_users")
+}
+
+// ─── Catalog ──────────────────────────────────────────────────────────────────
+
+model Category {
+  id       String    @id @default(cuid())
+  /// URL segment, English, set by hand (§2 — never autotransliterated).
+  slug     String    @unique
+  nameUk   String
+  position Int       @default(0)
+  products Product[]
+
+  @@map("categories")
+}
+
+/// Badges a manager may set by hand. Everything else a customer sees — sale,
+/// out of stock, low stock — is derived from price and stock, and must not
+/// become editable or the label could contradict the product's real state
+/// (§12.4).
+enum ManualBadge {
+  NEW
+  BESTSELLER
+}
+
+model Product {
+  id     String @id @default(cuid())
+  /// SEO slug, English, entered by the manager (§2).
+  slug   String @unique
+  /// Ukrainian name — what the customer reads.
+  nameUk String
+  /// Latin name, used for alt text and future i18n.
+  name   String
+
+  /// The pull quote shown above the description, e.g. "Satin softness…".
+  tagline     String @default("")
+  /// Block 01 of the product copy. Plain text — there is no rich text editor,
+  /// so it is rendered without `dangerouslySetInnerHTML` and needs no
+  /// sanitisation yet. Adding an editor makes sanitising mandatory (§2).
+  description String
+
+  /// Block 03. Required on purpose: the page used to invent generic usage text
+  /// when this was missing, which for a silk scrunchie read "apply to clean
+  /// skin with massaging movements". An empty section is recoverable; invented
+  /// product copy is not.
+  usage String
+
+  /// Block 02, as an ordered array of `{ key, value }` (§2 EAV via JSONB).
+  /// Ordered and free-form because the real catalogue demands it: the scrunchie
+  /// has Material/Hair type, the sets have Contents, the lip balm has Finish.
+  /// Values may hold multi-line bullet lists.
+  specifications Json @default("[]")
+
+  /// Photos and short clips in one ordered list, so `media[0]` is the primary
+  /// item either way. Consumers must ask `isVideoUrl()` before rendering (§6).
+  media String[] @default([])
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  badge ManualBadge?
+
+  /// The ordinary price — what this product costs when no promotion is running.
+  ///
+  /// Whole hryvnia. Integers, not floats — and not kopecks, because the
+  /// assortment has no kopecks and the conversion happens only at the Monobank
+  /// boundary (`toKopecks`), which is the rule §2 states.
+  price Int @default(0)
+
+  /// The promotional price, and while it is set it is what the customer
+  /// actually pays; `price` is then only the struck-through figure beside it.
+  ///
+  /// Stored rather than derived from a discount percentage, so the number the
+  /// customer sees is exactly the one the manager typed, with no rounding
+  /// drift. It must be **lower** than `price` — the admin rejects anything
+  /// else, since a "promotion" to a higher price is not a state the catalogue
+  /// should be able to hold.
+  promotionalPrice Int?
+
+  /// Units on the shelf. Reserved by `createOrder` with a conditional update
+  /// inside a transaction, never read-then-written.
+  stock Int @default(0)
+
+  /// Block 04 of the product copy — delivery and packaging.
+  ///
+  /// A plain required field like the rest, and there is no default: every
+  /// product carries its own text, typed by hand. Nothing is substituted at
+  /// render time and the editor pre-fills nothing — both shortcuts put copy on
+  /// a live page that the manager responsible for it cannot find in the panel,
+  /// and cannot change (§12.4).
+  packaging String @default("")
+
+  /// Where this product sits in the catalogue, ascending.
+  ///
+  /// Content like the banners and the categories, set by dragging the cards in
+  /// `/admin/products`. Not `createdAt desc`: a shop leads with what it is
+  /// selling this month, which is not always what was photographed last.
+  ///
+  /// One order for the whole catalogue, not one per category: the category
+  /// tabs filter this same list and the relative order survives the filter.
+  /// A per-category order would need a third table and would ask a manager to
+  /// keep several lists in their head.
+  ///
+  /// `createdAt desc` stays as the tie-break in the query. Two rows sharing a
+  /// position would otherwise come back in whatever order Postgres liked that
+  /// minute, which is a list that reshuffles itself between page loads.
+  ///
+  /// A new product is given the lowest position of all, so it appears first:
+  /// that is where the date used to put it, and pushing a novelty down is one
+  /// drag while pulling it up from the bottom of eleven is several.
+  ///
+  /// Deliberately unindexed. The catalogue is a dozen rows and Postgres reads
+  /// the table sequentially whatever we tell it; an index here would be
+  /// ceremony. Worth adding when the assortment reaches the hundreds.
+  position Int @default(0)
+
+  /// Soft delete: old orders still reference these rows (§2).
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// What this product is made of, when it is a set.
+  components ProductComponent[] @relation("SetToComponent")
+  /// The sets this product appears in.
+  partOfSets ProductComponent[] @relation("ComponentToSet")
+
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@index([isDeleted])
+  @@map("products")
+}
+
+/// Set membership. Explicit rather than free text so "Set L contains the shower
+/// gel" stays true when the gel is renamed, and so a future TTN can list real
+/// articles.
+model ProductComponent {
+  id String @id @default(cuid())
+
+  setId String
+  set   Product @relation("SetToComponent", fields: [setId], references: [id], onDelete: Cascade)
+
+  componentId String
+  component   Product @relation("ComponentToSet", fields: [componentId], references: [id])
+
+  quantity Int @default(1)
+  position Int @default(0)
+
+  @@unique([setId, componentId])
+  @@index([setId])
+  /// Read from the other direction by `deleteProductForever`, which asks whether
+  /// this product sits inside any set before removing it — the foreign key is
+  /// ON DELETE RESTRICT, and a bare constraint violation cannot tell a manager
+  /// which set to look in. Postgres indexes the primary key but never the
+  /// referencing side of a foreign key.
+  @@index([componentId])
+  @@map("product_components")
+}
+
+// ─── Editable site content ────────────────────────────────────────────────────
+
+/// Home-page banners, managed from `/admin/banners` — `HeroBanners` reads
+/// `getActiveBanners()` and holds no content of its own.
+/// They are the one piece of site content that genuinely moves, and a seasonal
+/// campaign should not be a developer task and a deploy. Static pages
+/// (About, legal) deliberately stay in code: they are written once and
+/// changed rarely, so an editor for them would be machinery without a user.
+model Banner {
+  id       String   @id @default(cuid())
+  title    String
+  subtitle String?
+  /// Exactly three image URLs, in the order they are shown. A desktop puts all
+  /// three side by side, a tablet the first two, a phone the first — so
+  /// `images[0]` is the one every visitor sees. The count is fixed and
+  /// `bannerSchema` enforces it. Don't reintroduce a per-banner layout: it asks
+  /// the manager a question whose answer changes the shape of every cell at
+  /// every width at once, which nobody can picture.
+  images   String[] @default([])
+
+  ctaLabel          String?
+  ctaHref           String?
+  /// A second, quieter button. The lead banner carries one ("About the brand"
+  /// beside "Shop the catalogue"); the others do not, so both halves are optional and a
+  /// banner with a label and no address simply renders no button.
+  ctaSecondaryLabel String?
+  ctaSecondaryHref  String?
+
+  isActive  Boolean  @default(true)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
+  @@map("banners")
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum DeliveryMethod {
+  BRANCH
+  COURIER
+}
+
+/// Goods are paid online only (§4). Delivery is settled by the recipient at the
+/// branch and never enters the order total.
+enum PaymentMethod {
+  MONO
+}
+
+model Order {
+  /// Human-readable and dated, e.g. `VSL-20260813-A1B2C` — managers quote it.
+  id     String      @id
+  status OrderStatus @default(PENDING_PAYMENT)
+
+  firstName String
+  lastName  String
+  phone     String
+  email     String
+
+  city           String
+  /// Nova Poshta `CityRef`, kept for TTN generation (§5).
+  cityRef        String         @default("")
+  deliveryMethod DeliveryMethod
+  branch         String?
+  /// Nova Poshta `WarehouseRef` (§5).
+  branchRef      String?
+  address        String?
+  comment        String?
+
+  paymentMethod PaymentMethod @default(MONO)
+
+  /// Proof of consent, stamped by the server — the client only asserts the
+  /// checkbox. Without the timestamp and the policy version the consent
+  /// required by §3.6 cannot actually be demonstrated afterwards. The current
+  /// version is a constant in `src/lib/storeContent.ts`, next to the policy
+  /// text itself, so the number and the wording can never drift apart.
+  consentAt            DateTime
+  privacyPolicyVersion String
+
+  /// Sum of the frozen line prices, computed server-side (§3.5).
+  total Int
+
+  /// When an unpaid order releases its stock. Longer than the Monobank invoice
+  /// validity, so an order is never cancelled while it is being paid.
+  expiresAt DateTime
+
+  invoiceId       String?
+  /// Hosted-checkout sessions opened — capped to deter card testing (§3.1).
+  paymentAttempts Int       @default(0)
+  paidAt          DateTime?
+
+  trackingNumber String?
+  /// Internal, never shown to the customer.
+  managerNote    String?
+
+  /// When a manager put this order out of the way, or null while it is live.
+  ///
+  /// A timestamp rather than a flag, because "when" is the question asked of an
+  /// archive and a boolean cannot answer it. Archiving is a **view** decision
+  /// and nothing else: the row is untouched, the money still counts in the
+  /// turnover, and the order can be brought back.
+  ///
+  /// "Orders are financial records and are never deleted" holds for every
+  /// order except one kind: a `CANCELLED` order that no money ever reached may
+  /// be deleted outright from its own page (`deleteCancelledOrder`). An
+  /// abandoned
+  /// checkout and a form filled in with invented names are not records of
+  /// anything — they are a stranger's typing, and archiving only moves it to a
+  /// second screen. `paidAt` and `needsReview` are what still forbid it.
+  ///
+  /// Only a finished order may be archived — delivered, cancelled or returned.
+  /// Hiding one that still owes work is the opposite of useful, and that guard
+  /// lives in `setOrderArchived`.
+  archivedAt DateTime?
+
+  /// When this order's personal data was erased, or null while it still holds
+  /// any (`anonymizeOldOrders`).
+  ///
+  /// The privacy policy promises that order data does not outlive its retention
+  /// period, and until now nothing in the codebase deleted anything at all — a
+  /// promise the system did not keep. What runs now erases rather than deletes:
+  /// the name, telephone, email, street address and comment go, while the sum,
+  /// the lines and the dates stay. Tax law wants the transaction kept; data
+  /// protection law wants the person not kept. Erasing the person satisfies
+  /// both, and the shop's own turnover for past years survives intact.
+  ///
+  /// A marker rather than a value sniff: the sweep asks for rows where this is
+  /// null, so it does no work on the ones it has already done, and the panel can
+  /// say plainly why an old order has no customer on it.
+  anonymizedAt DateTime?
+
+  /// Something happened to this order's money that nothing can resolve
+  /// automatically: a callback for an amount we did not expect, a payment that
+  /// arrived after a cancellation, a settled invoice that is not the one we
+  /// recorded. The audit log has always held these, but only an OWNER can read
+  /// it, and it is a MANAGER who works the orders — so the anomaly was invisible
+  /// to the person handling the parcel. This puts it on the order itself.
+  ///
+  /// Written only by `flagOrderForReview`, and never cleared automatically —
+  /// only a person can decide an anomaly is resolved, and `clearOrderReview`
+  /// is how they do it: a button inside the warning itself, which appends to
+  /// `reviewNote` rather than erasing it and records `ORDER_REVIEW_RESOLVED`.
+  /// This docstring described that as an open debt long after it was closed.
+  needsReview Boolean @default(false)
+  /// What was wrong, in the manager's language rather than the log's.
+  reviewNote  String?
+
+  /// Fingerprint of the basket this order was placed for: product ids,
+  /// quantities and frozen prices. A repeat submission carrying the same
+  /// fingerprint from the same phone is the same purchase — a double click, a
+  /// retry after a dropped connection, a second tab — and is answered with the
+  /// order that already exists rather than a second one holding a second
+  /// reservation.
+  cartFingerprint String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  /// Composite, and in this order, because the expiry sweep is the only query
+  /// that filters orders at all: `status = PENDING_PAYMENT AND expiresAt < now`,
+  /// every ten minutes, forever. A leading `status` also serves a status-only
+  /// filter, so this replaces the plain index rather than joining it.
+  @@index([status, expiresAt])
+  @@index([createdAt])
+  @@index([email])
+  /// The idempotency lookup on checkout: an unpaid order for this phone with
+  /// this basket. Narrow and hit on every order creation.
+  @@index([phone, status, cartFingerprint])
+  /// The journal's default view is "everything not archived", so this is read
+  /// on every load of the busiest admin screen.
+  @@index([archivedAt])
+  /// `invoiceId` is deliberately left unindexed. Nothing looks an order up by
+  /// it today — the webhook arrives with our own `reference` — and an index
+  /// costs a write on every order. It becomes worth adding alongside the
+  /// Monobank reconciliation that would read it, not before (§2, same reasoning
+  /// as `sku`).
+  @@map("orders")
+}
+
+/// A line of an order. Name and price are copied at creation time and frozen,
+/// so an old order keeps showing what the customer actually paid.
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Kept as references, not cascades: the catalogue uses soft delete, so these
+  /// rows always resolve.
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  nameUk   String
+  price    Int
+  quantity Int
+  image    String?
+
+  /// How many of this line came back. Zero for the ordinary case.
+  ///
+  /// A number, not a status, and that is the whole design: a customer who
+  /// returns one cream out of three leaves an order that is paid, partly
+  /// refunded, and still delivered — three facts that no single status enum can
+  /// hold at once. Kept per line rather than as one sum on the order so the
+  /// refunded amount is derived from the frozen prices the customer actually
+  /// paid, and so a manager can see *which* item came back.
+  ///
+  /// **The shop never moves money for this.** The refund itself is made by the
+  /// owner in Monobank's own cabinet; this records what happened so the
+  /// turnover figure is not a fiction.
+  returnedQuantity Int @default(0)
+
+  /// How many of the returned units were actually put back on the shelf.
+  ///
+  /// Separate from `returnedQuantity` because the two answer different
+  /// questions: one is "what came back", the other is "what can be sold again".
+  /// A returned cosmetic may be opened, damaged or simply not resalable, so the
+  /// manager ticks a box per line and this records the consequence.
+  ///
+  /// It exists to make the stock movement **idempotent and reversible**: the
+  /// shelf is adjusted by `target − restockedQuantity`, so correcting a return
+  /// from two units to one takes one back off the shelf rather than adding
+  /// another, and saving the same form twice changes nothing.
+  restockedQuantity Int @default(0)
+
+  @@index([orderId])
+  /// Read from the other direction, and by two callers that both grow with the
+  /// catalogue: `deleteProductForever` asks whether this product was ever
+  /// bought, and the admin product list counts orders **per product** on every
+  /// load. Without this the answer means reading `order_items` end to end — and
+  /// this is the one table that grows forever, because an order is a financial
+  /// record and its lines are never deleted.
+  @@index([productId])
+  @@map("order_items")
+}
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+
+  /// Null for anonymous or system actors (failed logins, the Monobank webhook).
+  /// Must match `AppUser.id`, which is the Supabase `auth.users` uuid.
+  actorId    String?  @db.Uuid
+  actor      AppUser? @relation(fields: [actorId], references: [id])
+  /// The actor as the caller named it, and for staff that is their uuid rather
+  /// than their name: every call site passes `admin.id`. The readable name
+  /// comes from the join to `app_users`, so this field is an identity of its
+  /// own only for actors with no row at all (`system`, `monobank-webhook`,
+  /// `anonymous`).
+  ///
+  /// Deleting an account nulls `actorId` (`ON DELETE SET NULL`) and leaves its
+  /// entries showing a bare uuid. Nothing deletes one: the panel deactivates
+  /// instead, and no script for it exists. Anything that ever does must write
+  /// the name in here first.
+  actorLabel String
+
+  action  String
+  target  String
+  ip      String?
+  details Json?
+
+  @@index([timestamp])
+  @@index([action])
+  /// Joined to `app_users` on every page of the journal. This table only ever
+  /// grows in practice — an OWNER may remove a single entry and nothing else
+  /// deletes from it, least of all in bulk — so the index is cheap now and
+  /// expensive to add later, when creating it means
+  /// locking the largest table in the database.
+  @@index([actorId])
+  @@map("audit_log")
+}
+
+// ─── Nova Poshta directory ────────────────────────────────────────────────────
+
+/**
+ * A local mirror of Nova Poshta's address book, refreshed by
+ * `npm run sync-novaposhta`.
+ * Not a cache. Nova Poshta rate-limits **per API key**, and the shop has one
+ * key for every shopper at once — roughly fifteen people typing an address
+ * together exhaust it, the lookup starts answering `[]`, and the checkout
+ * quietly falls back to a hand-typed address. That ceiling is reached by
+ * concurrency, not by monthly volume, so it arrives precisely at the busiest
+ * moment. Holding the directory here removes the shop's own address lookups
+ * from that budget entirely: only the nightly sync spends it.
+ * `ref` is Nova Poshta's own identifier and stays the primary key — it is what
+ * `Order.cityRef` and `Order.branchRef` already store, and inventing a second
+ * identity for the same row would only need reconciling.
+ */
+model NpCity {
+  /// Nova Poshta `Ref`. Plain text rather than `uuid`: every one it issues is a
+  /// uuid today, and `verifyDeliveryTarget` still refuses anything else on the
+  /// way in — but that check guards *input*, and a stricter column here would
+  /// turn one malformed row in their directory into a sync that fails outright
+  /// and a shop with no addresses at all.
+  ref  String @id
+  name String
+  /// Oblast, shown beside the name so two identically named towns can be told
+  /// apart — which is the whole reason the autocomplete shows it.
+  area String
+
+  /// Stamped with the start of the run that wrote this row. The sync deletes
+  /// whatever it did not touch, which is how a city that leaves the directory
+  /// leaves ours.
+  syncedAt DateTime
+
+  @@index([syncedAt])
+  @@map("np_cities")
+}
+
+model NpWarehouse {
+  ref String @id
+
+  /// The city this branch belongs to, matching `NpCity.ref`.
+  ///
+  /// **Deliberately not a foreign key.** Nova Poshta's warehouse list is not
+  /// guaranteed to be a subset of its city list, and a constraint would turn
+  /// one unfamiliar row into a failed sync for the whole directory. The index
+  /// is what this is actually for: every warehouse lookup filters by city
+  /// first, which is what keeps the search over a few hundred rows instead of
+  /// tens of thousands.
+  cityRef String
+
+  /// The branch as Nova Poshta writes it — number and street in one string,
+  /// which is exactly what the shopper picks from and what the manager reads.
+  description String
+
+  syncedAt DateTime
+
+  @@index([cityRef])
+  @@index([syncedAt])
+  @@map("np_warehouses")
+}
+
+/**
+ * One row per entity, written at the end of a successful sync.
+ * Its real job is answering "is the directory usable at all", cheaply and
+ * without counting rows on every request. An empty directory must read as
+ * "the directory is unavailable" rather than "no such city" — §5.2 says an
+ * order is worth more than an autocomplete, so the lookups fall back to the
+ * live API when this table has nothing to say.
+ */
+model NpSync {
+  /// `cities` or `warehouses`.
+  entity String @id
+
+  /// The end of the last **completed** run, and the figures it produced.
+  ///
+  /// Deliberately untouched while a run is in flight. `isDirectoryReady` reads
+  /// `rowCount`, and the whole fallback to the live API hangs off it — so a
+  /// half-finished refresh must not be able to make the directory look empty.
+  syncedAt DateTime
+  rowCount Int
+
+  /// Stamp of the run currently under way, or null when none is.
+  ///
+  /// A full refresh of the branches is around 180 MB over roughly a hundred
+  /// paged requests, which does not reliably fit in one serverless invocation.
+  /// The run therefore survives across several: rows are stamped with this as
+  /// they arrive, and whatever still carries an older stamp when the last page
+  /// lands is what has left Nova Poshta's directory since.
+  runStartedAt DateTime?
+
+  /// The page the next invocation should ask for. Written after every page, so
+  /// a run cut off mid-flight loses at most one.
+  nextPage Int?
+
+  @@map("np_sync")
+}
